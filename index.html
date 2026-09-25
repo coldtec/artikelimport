@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SECOMP Import Tool</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+:root{--bg:#0b1116;--card:#121b22;--card2:#17232c;--line:#263843;--text:#edf7f8;--muted:#91a5ad;--accent:#2dd4bf;--accent2:#14b8a6;--bad:#fb7185;--warn:#fbbf24}
+*{box-sizing:border-box}
+.login-overlay{position:fixed;inset:0;z-index:9999;background:linear-gradient(180deg,#081015,#0e171d);display:grid;place-items:center;padding:22px}
+.login-box{width:min(430px,100%);background:#121b22;border:1px solid #263843;border-radius:18px;padding:28px;box-shadow:0 24px 80px rgba(0,0,0,.35)}
+.login-box h1{margin:4px 0 7px;font-size:25px}.login-box p{color:#91a5ad;margin:0 0 20px}.login-box input{width:100%;background:#0d161c;color:#edf7f8;border:1px solid #263843;padding:13px;border-radius:10px;margin-bottom:10px}
+.login-error{min-height:20px;color:#fb7185;font-size:13px;margin-top:8px}
+body{margin:0;background:linear-gradient(180deg,#081015,#0e171d);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:1050px;margin:auto;padding:42px 22px 70px}.hero{margin-bottom:28px}.eyebrow{color:var(--accent);font-weight:800;letter-spacing:.12em;font-size:12px}.hero h1{font-size:34px;margin:5px 0 6px}.hero p{color:var(--muted);margin:0}
+.tabs{display:flex;gap:8px;margin:24px 0}.tab{border:1px solid var(--line);background:#101920;color:var(--muted);padding:11px 16px;border-radius:10px;cursor:pointer;font-weight:700}.tab.active{background:var(--accent);color:#05201d;border-color:var(--accent)}
+.panel{display:none}.panel.active{display:block}.card{background:rgba(18,27,34,.95);border:1px solid var(--line);border-radius:16px;padding:22px;margin-bottom:16px;box-shadow:0 18px 50px rgba(0,0,0,.18)}
+.step{display:flex;align-items:center;gap:12px;margin-bottom:14px}.num{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:#05201d;font-weight:900}.step h2{font-size:20px;margin:0}
+.drop{border:2px dashed #36515d;border-radius:14px;padding:28px;text-align:center;background:#0d161c;transition:.15s;cursor:pointer}.drop.over{border-color:var(--accent);background:#0d201e}.drop b{display:block;font-size:17px}.drop span{color:var(--muted)}
+.files{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:16px}.file{display:flex;justify-content:space-between;gap:10px;background:var(--card2);padding:10px 12px;border-radius:9px;color:var(--muted)}.file.ok{color:#c7fff6}.dot{font-weight:900}.ok .dot{color:var(--accent)}.missing .dot{color:#5d7078}
+.row{display:flex;gap:12px;align-items:end;flex-wrap:wrap}.field{flex:1;min-width:250px}.field label{display:block;color:var(--muted);font-size:12px;margin-bottom:5px}.field input{width:100%;background:#0d161c;color:var(--text);border:1px solid var(--line);padding:12px;border-radius:9px}
+button.primary{border:0;background:var(--accent);color:#05201d;font-weight:900;padding:12px 18px;border-radius:10px;cursor:pointer}button.primary:disabled{opacity:.35;cursor:not-allowed}
+.status{margin-top:14px;padding:12px;border-radius:9px;background:#0d161c;color:var(--muted);white-space:pre-wrap}.status.good{border-left:3px solid var(--accent)}.status.bad{border-left:3px solid var(--bad)}
+.results{display:none}.results.show{display:block;background:rgba(45,212,191,.10);border-color:rgba(45,212,191,.45);box-shadow:0 18px 50px rgba(0,0,0,.18),inset 0 0 0 1px rgba(45,212,191,.05)}.downloads{display:flex;flex-wrap:wrap;gap:8px}.dl{background:#182832;border:1px solid #31505b;color:#dff;cursor:pointer;border-radius:9px;padding:10px 12px}.note{font-size:13px;color:var(--muted);margin-top:12px}
+@media(max-width:700px){.files{grid-template-columns:1fr}.hero h1{font-size:28px}}
+</style>
+</head>
+<body><div id="loginOverlay" class="login-overlay">
+<div class="login-box">
+<div class="eyebrow">SECOMP IMPORT TOOL</div>
+<h1>Zugang</h1>
+<p>Bitte Passwort eingeben.</p>
+<input id="loginPassword" type="password" placeholder="Passwort" autocomplete="current-password">
+<button id="loginButton" class="primary" style="width:100%">Tool öffnen</button>
+<div id="loginError" class="login-error"></div>
+</div>
+</div>
+<div class="wrap">
+<div class="hero"><div class="eyebrow">INTERNES TOOL</div><h1>SECOMP Produktdaten</h1><p>Aufbereiten, kontrollieren und fertige Importdateien erstellen – direkt im Browser.</p></div>
+<div class="tabs"><button class="tab active" data-tab="p1">① Daten aufbereiten</button><button class="tab" data-tab="p2">② Import erstellen</button></div>
+
+<section id="p1" class="panel active">
+<div class="card"><div class="step"><div class="num">1</div><h2>Ausgangsdateien hineinziehen</h2></div>
+<div id="drop1" class="drop"><b>Dateien hier ablegen</b><span>oder klicken und Dateien auswählen</span><input id="pick1" type="file" multiple hidden></div>
+<div id="files1" class="files"></div></div>
+<div class="card"><div class="step"><div class="num">2</div><h2>Aufbereitung starten</h2></div>
+<div class="row"><div class="field"><label>Unterste Webshopkategorie</label><input id="category" placeholder="z. B. TV"></div><button id="run1" class="primary" disabled>Aufbereitung starten</button></div>
+<div id="status1" class="status">Warte auf die benötigten Dateien.</div></div>
+<div id="results1" class="card results"><div class="step"><div class="num">✓</div><h2>Phase 1 abgeschlossen</h2></div><div id="downloads1" class="downloads"></div><div class="note">Artikel_angereichert.xlsx jetzt manuell kontrollieren/ergänzen. Danach mit Phase 2 fortfahren.</div></div>
+</section>
+
+<section id="p2" class="panel">
+<div class="card"><div class="step"><div class="num">1</div><h2>Bearbeitete Dateien hineinziehen</h2></div>
+<div id="drop2" class="drop"><b>Dateien hier ablegen</b><span>Artikel_angereichert.xlsx + drei CSV-Dateien</span><input id="pick2" type="file" multiple hidden></div>
+<div id="files2" class="files"></div></div>
+<div class="card"><div class="step"><div class="num">2</div><h2>Importdateien erstellen</h2></div><button id="run2" class="primary" disabled>Importdateien erstellen</button><div id="status2" class="status">Warte auf die benötigten Dateien.</div></div>
+<div id="results2" class="card results"><div class="step"><div class="num">✓</div><h2>Importdateien bereit</h2></div><div id="downloads2" class="downloads"></div><div style="margin-top:14px"><button id="downloadAll2" class="primary">Alle herunterladen (.zip)</button></div></div>
+</section>
+</div>
+
+<script>
+/*
+
+*/
+const PASSWORT = "ct55555";
+
+function tryLogin(){
+ const input=document.getElementById("loginPassword");
+ const error=document.getElementById("loginError");
+
+ if(PASSWORT==="HIER_DEIN_PASSWORT_EINTRAGEN"){
+   error.textContent="Zuerst Passwort im HTML eintragen.";
+   return;
+ }
+
+ if(input.value===PASSWORT){
+   sessionStorage.setItem("secompToolAccess","1");
+   document.getElementById("loginOverlay").style.display="none";
+   input.value="";
+   error.textContent="";
+ }else{
+   error.textContent="Passwort nicht korrekt.";
+   input.select();
+ }
+}
+
+document.getElementById("loginButton").onclick=tryLogin;
+document.getElementById("loginPassword").addEventListener("keydown",e=>{
+ if(e.key==="Enter")tryLogin();
+});
+
+if(sessionStorage.getItem("secompToolAccess")==="1"){
+ document.getElementById("loginOverlay").style.display="none";
+}
+
+const req1=["Artikel.xlsx","ProductData_secomp.csv","SpecificationData_secomp.csv","Keywords.xlsx","Config.xlsx","Mapping_Master.xlsx"];
+const req2=["Artikel_angereichert.xlsx","Artikelkategorien.csv","Attribute.csv","Attributsgruppe.csv"];
+const f1=new Map(), f2=new Map(), out1=new Map(), out2=new Map();
+const S=x=>String(x??"").trim(), low=x=>S(x).toLocaleLowerCase("de-CH");
+const escRx=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+function rx(s){return new RegExp(s,"i")}
+function setupDrop(id,pick,map,req,render){
+ const d=document.getElementById(id), p=document.getElementById(pick);
+ d.onclick=()=>p.click(); d.ondragover=e=>{e.preventDefault();d.classList.add("over")}; d.ondragleave=()=>d.classList.remove("over");
+ d.ondrop=e=>{e.preventDefault();d.classList.remove("over");add(e.dataTransfer.files)}; p.onchange=()=>add(p.files);
+ function add(fs){[...fs].forEach(f=>map.set(f.name,f));render()}
+}
+function renderFiles(el,map,req,btn){
+ el.innerHTML=req.map(n=>`<div class="file ${map.has(n)?'ok':'missing'}"><span>${n}</span><span class="dot">${map.has(n)?'✓':'○'}</span></div>`).join("");
+ document.getElementById(btn).disabled=!req.every(n=>map.has(n));
+}
+setupDrop("drop1","pick1",f1,req1,()=>renderFiles(document.getElementById("files1"),f1,req1,"run1"));
+setupDrop("drop2","pick2",f2,req2,()=>renderFiles(document.getElementById("files2"),f2,req2,"run2"));
+renderFiles(document.getElementById("files1"),f1,req1,"run1");renderFiles(document.getElementById("files2"),f2,req2,"run2");
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab,.panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.getElementById(b.dataset.tab).classList.add("active")});
+
+async function wb(file){return XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:false})}
+function rowsFromSheet(sh){return XLSX.utils.sheet_to_json(sh,{defval:"",raw:false})}
+async function csvRows(file){const text=await file.text(); const w=XLSX.read(text,{type:"string",FS:";"}); return rowsFromSheet(w.Sheets[w.SheetNames[0]])}
+function mapBy(arr,key){const m=new Map();arr.forEach(o=>{const k=S(o[key]);if(k)m.set(k,o)});return m}
+function groupBy(arr,key){const m=new Map();arr.forEach(o=>{const k=S(o[key]);if(!k)return;if(!m.has(k))m.set(k,[]);m.get(k).push(o)});return m}
+function wordCount(t){return S(t)?S(t).split(/\s+/).length:0}
+function attrScore(name,val){let s=10,n=low(name);
+ if(/bildtechnologie|displaytechnologie|paneltechnologie|qled|oled|mini led/i.test(n))s+=220;
+ if(/auflösung/i.test(n))s+=210;if(/aquastop|wasserschutz|no frost|nofrost|low frost|automatik/i.test(n))s+=200;
+ if(/kapazität|fassungsvermögen|nutzinhalt|volumen|beladung/i.test(n))s+=190;
+ if(/smart tv|smart home|betriebssystem|wlan|wi-fi|wifi|apps/i.test(n))s+=180;
+ if(/hdr|dolby vision/i.test(n))s+=170;if(/programme|programmanzahl/i.test(n))s+=150;
+ if(/schleuderdrehzahl/i.test(n))s+=130;if(/bildschirmdiagonale/i.test(n))s+=110;
+ if(/energieeffizienz/i.test(n))s+=90;if(/bildwiederhol/i.test(n))s+=60;if(/geräusch|lautstärke|schall/i.test(n))s+=60;
+ if(/modellbezeichnung|modelljahr|ean|artikelnummer|produktnummer|hersteller|lieferumfang/i.test(n))s-=500;
+ if(/breite|höhe|tiefe|gewicht|verpackung|abmessung|farbgruppe|materialgruppe/i.test(n))s-=500; return s}
+function attrText(name,val){name=S(name);val=S(val);if(!name||!val)return"";let n=low(name);
+ if(/energieeffizienz/i.test(n))return `Energieeffizienzklasse ${val}`;
+ if(/bildwiederhol/i.test(n))return /hz/i.test(val)?`${val} Bildwiederholungsfrequenz`:`${val} Hz Bildwiederholungsfrequenz`;
+ if(/bildschirmdiagonale/i.test(n)&&/cm/i.test(n))return /\bcm\b/i.test(val)?`${val} Bildschirmdiagonale`:`${val} cm Bildschirmdiagonale`;
+ if(/auflösung/i.test(n))return `${val} Bildauflösung`;
+ if(/schleuderdrehzahl/i.test(n))return /u\/min|rpm/i.test(val)?`${val} Schleuderdrehzahl`:`${val} U/min Schleuderdrehzahl`;
+ if(/^ja$/i.test(val))return name;if(/^nein$/i.test(val))return"";let t=`${val} ${name}`.replace(/\s+/g," ").trim();return wordCount(t)>6?"":t}
+function featureGroup(name){let n=low(name);
+ if(/bildschirmdiagonale/i.test(n))return"Bildschirmgroesse";if(/auflösung/i.test(n))return"Aufloesung";if(/smart tv|smart home|betriebssystem|apps/i.test(n))return"Smart";
+ if(/bildtechnologie|displaytechnologie|paneltechnologie|qled|oled|mini led/i.test(n))return"Bildtechnologie";if(/hdr|dolby vision/i.test(n))return"HDR";
+ if(/kapazität|fassungsvermögen|nutzinhalt|volumen|beladung/i.test(n))return"Kapazitaet";if(/aquastop|wasserschutz|no frost|nofrost|low frost/i.test(n))return"Spezialfunktion";
+ if(/programme|programmanzahl/i.test(n))return"Programme";if(/schleuderdrehzahl/i.test(n))return"Drehzahl";if(/energieeffizienz/i.test(n))return"Energie";if(/bildwiederhol/i.test(n))return"Bildwiederholrate";if(/geräusch|lautstärke|schall/i.test(n))return"Lautstaerke";return"Andere_"+n}
+function shortDesc(specs){let cand=[],seen=new Set();for(const sp of specs||[]){let n=S(sp.SpecificationKey_DE),v=S(sp.SpecificationValue_DE),t=attrText(n,v);if(!t||seen.has(low(t)))continue;seen.add(low(t));cand.push({text:t,name:n,val:v,score:attrScore(n,v),group:featureGroup(n)})}
+ cand.sort((a,b)=>b.score-a.score);let out=[],groups=new Set();for(const x of cand){if(out.length>=3)break;if(!groups.has(x.group)){groups.add(x.group);out.push(x)}}return out.length?out.map(x=>x.text).join("<BR>")+"<BR>":""}
+function productInfo(specs){let c=[];for(const sp of specs||[]){let name=S(sp.SpecificationKey_DE),val=S(sp.SpecificationValue_DE),n=low(name),score=10;if(!name||!val)continue;
+ if(/modellbezeichnung|modelljahr|ean|artikelnummer|produktnummer|hersteller|materialgruppe|höhe|breite|tiefe|gewicht|verpackung|paketgewicht|farbgruppe|abmessung|dimension/i.test(n)||/^nein$/i.test(val))continue;
+ if(/auflösung|bildwiederhol|hdr|dolby|qled|oled|mini led|laser/i.test(n))score+=160;if(/kapazität|fassungsvermögen|nutzinhalt|volumen|beladung/i.test(n))score+=155;
+ if(/schleuderdrehzahl|drehzahl|geschwindigkeit/i.test(n))score+=150;if(/aquastop|wasserschutz|überlaufschutz/i.test(n))score+=145;if(/smart|wlan|wi-fi|wifi|bluetooth|apps|airplay/i.test(n))score+=140;
+ if(/anschluss|hdmi|usb|displayport/i.test(n))score+=135;if(/geräusch|lautstärke|schall/i.test(n))score+=130;if(/programme|programmanzahl/i.test(n))score+=125;if(/helligkeit|leistung/i.test(n))score+=120;if(/energieeffizienz/i.test(n))score+=110;if(/bildschirmdiagonale/i.test(n))score+=105;
+ c.push({name:name.replaceAll('"'," Zoll"),val:val.replaceAll('"'," Zoll"),score})}
+ c.sort((a,b)=>b.score-a.score);let seen=new Set(),a=[];for(const x of c){if(!seen.has(x.name)){seen.add(x.name);a.push(x)}if(a.length>=12)break}if(!a.length)return"";
+ let h="<br><P><STRONG>Produktinformation</STRONG></P><UL>",z=a.find(x=>/bildschirmdiagonale.*zoll/i.test(x.name)),cm=a.find(x=>/bildschirmdiagonale.*cm/i.test(x.name)),ba=a.find(x=>/^bildauflösung$/i.test(x.name)),ma=a.find(x=>/max.*auflösung/i.test(x.name));
+ if(z&&cm)h+=`<LI>Bildschirmdiagonale: ${z.val} Zoll / ${cm.val} cm</LI>`;else if(z)h+=`<LI>Bildschirmdiagonale: ${z.val} Zoll</LI>`;else if(cm)h+=`<LI>Bildschirmdiagonale: ${cm.val} cm</LI>`;
+ if(ba&&ma)h+=`<LI>Auflösung: ${ba.val}, ${ma.val} Pixel</LI>`;else if(ba)h+=`<LI>Auflösung: ${ba.val}</LI>`;else if(ma)h+=`<LI>Auflösung: ${ma.val} Pixel</LI>`;
+ for(const x of a){if(/bildschirmdiagonale|max.*auflösung|^bildauflösung$/i.test(x.name))continue;h+=/^ja$/i.test(x.val)?`<LI>${x.name}</LI>`:`<LI>${x.name}: ${x.val}</LI>`}
+ return h+"</UL><br><P><STRONG>Weitere wichtige Infos findest du unter Spezifikation und Downloads</STRONG></P>"}
+function keywordKey(cat,lookup){cat=S(cat);if(lookup.has(cat))return cat;for(const p of cat.split(/\s*&\s*/)){if(lookup.has(S(p)))return S(p)}return""}
+function getKeywords(cat,title,lookup){const k=keywordKey(cat,lookup);if(!k)return"";let out=[],tl=low(title);for(const kw0 of lookup.get(k).keywords){let kw=S(kw0);if(!kw||tl.includes(low(kw))||out.some(x=>low(x)===low(kw)))continue;out.push(kw);if(out.length>=10)break}return out.join(", ")}
+function configGroup(cat){return cat==="TV"?"TV & Beamer":cat}
+function val(obj,...names){for(const n of names){const key=Object.keys(obj).find(k=>low(k)===low(n));if(key!==undefined)return S(obj[key])}return""}
+function semi(lines){return lines.join("\r\n")}
+function utf8Blob(s){return new Blob([s],{type:"text/csv;charset=utf-8"})}
+function dlBlob(name,blob){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+function setStatus(id,msg,bad=false){const e=document.getElementById(id);e.textContent=msg;e.className="status "+(bad?"bad":"good")}
+function addDownloads(elId,map){const el=document.getElementById(elId);el.innerHTML="";for(const [n,b] of map){const bt=document.createElement("button");bt.className="dl";bt.textContent="↓ "+n;bt.onclick=()=>dlBlob(n,b);el.appendChild(bt)}}
+function makeCsvRows(header,rows){return [header.join(";"),...rows.map(r=>r.map(x=>S(x).replace(/[\r\n]+/g," ")).join(";"))].join("\r\n")}
+
+document.getElementById("run1").onclick=async()=>{
+ try{
+  setStatus("status1","Dateien werden eingelesen und verarbeitet …"); out1.clear();
+  const [awb,pwb,kwb,cwb,mwb]=await Promise.all([wb(f1.get("Artikel.xlsx")),wb(f1.get("ProductData_secomp.csv")),wb(f1.get("Keywords.xlsx")),wb(f1.get("Config.xlsx")),wb(f1.get("Mapping_Master.xlsx"))]);
+  const artSheet=awb.Sheets[awb.SheetNames[0]], articles=rowsFromSheet(artSheet);
+  const products=await csvRows(f1.get("ProductData_secomp.csv")), specs=await csvRows(f1.get("SpecificationData_secomp.csv"));
+  const kwRows=rowsFromSheet(kwb.Sheets[kwb.SheetNames[0]]), configs=rowsFromSheet(cwb.Sheets["AttributeConfig"]), cats=rowsFromSheet(cwb.Sheets["Kategorien"]), maps=rowsFromSheet(mwb.Sheets["Mapping_TV"]);
+  const prod=mapBy(products,"ProviderKey"), spec=groupBy(specs,"ProductKey"), kw=new Map();
+  kwRows.forEach(r=>{let k=S(Object.values(r)[0]);if(k)kw.set(k,{keywords:S(Object.values(r)[1]).split(",").map(S).filter(Boolean),google:S(Object.values(r)[2])})});
+  // Enriched workbook: preserve original sheet and write same fixed columns as PowerShell.
+  const range=XLSX.utils.decode_range(artSheet["!ref"]); 
+  for(let rr=1;rr<=range.e.r;rr++){const cell=(c)=>artSheet[XLSX.utils.encode_cell({r:rr,c})]?.v??"";let pk=S(cell(0));if(!pk)continue;let desc=S(cell(2)),cat=S(cell(3)),p=prod.get(pk),sp=spec.get(pk)||[];
+   const set=(c,v)=>artSheet[XLSX.utils.encode_cell({r:rr,c})]={t:"s",v:S(v)};
+   set(4,getKeywords(cat,desc,kw)); set(9,kw.get(keywordKey(cat,kw))?.google||""); set(8,desc);set(10,"Simple");set(13,"4");set(14,"N");
+   if(p){let info=productInfo(sp),orig=S(p.LongDescription_de),lang=orig+info;set(6,lang);set(7,lang.replace('<br><P><STRONG>Weitere wichtige Infos findest du unter Spezifikation und Downloads</STRONG></P>',''));set(5,shortDesc(sp))}
+  }
+  const xbuf=XLSX.write(awb,{bookType:"xlsx",type:"array"});out1.set("Artikel_angereichert.xlsx",new Blob([xbuf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+
+  // Attribute mapping
+  let results=[],errors=[],groups=[]; const category=S(document.getElementById("category").value);
+  if(!category)throw new Error("Bitte zuerst die unterste Webshopkategorie eingeben.");
+  const catLookup=new Map(cats.map(x=>[low(val(x,"Name der Kategorie")),x])); if(!catLookup.has(low(category)))throw new Error(`Webshopkategorie "${category}" wurde in Config.xlsx nicht gefunden.`);
+  let hierarchy=[],cur=category,guard=0;while(cur&&guard++<30){let k=catLookup.get(low(cur));if(!k)throw new Error("Übergeordnete Kategorie nicht gefunden: "+cur);hierarchy.unshift(k);let parentKey=Object.keys(k).find(z=>/bergeordnete Kategorie/i.test(z));cur=parentKey?S(k[parentKey]):""}
+  for(const a of articles){let pk=val(a,"ProviderKey"),an=val(a,"Artikelnr.","Artikelnummer"),cat=val(a,"Kategorie");if(!pk)continue;let cg=configGroup(cat),cfgs=configs.filter(x=>S(x.Gruppe)===cg);
+   if(!cfgs.length){errors.push([an,pk,"","","Config-Gruppe nicht gefunden: "+cg]);continue}let gc=S(cfgs[0].GruppenCode);if(gc)groups.push([an,cg,gc]);else errors.push([an,pk,"","","GruppenCode fehlt in Config-Gruppe: "+cg]);
+   for(const sp of spec.get(pk)||[]){let sa=S(sp.SpecificationKey_DE),sv=S(sp.SpecificationValue_DE);if(!sa||!sv)continue;
+    let mp=maps.find(x=>S(x["Secomp Attribut"])===sa&&S(x.Kategorie)===cat)||maps.find(x=>S(x["Secomp Attribut"])===sa&&S(x.Kategorie)==="ALL");
+    if(!mp){errors.push([an,pk,sa,sv,"Kein Mapping vorhanden"]);continue}let action=S(mp.Aktion).toUpperCase();if(action==="IGNORE")continue;let ua=S(mp["Unser Attribut"]);if(!ua)continue;
+    let cfg=cfgs.find(x=>S(x.Key)===ua);if(!cfg){errors.push([an,pk,sa,sv,`Attribut nicht in Config-Gruppe '${cg}': ${ua}`]);continue}let fv="";
+    if(action==="COPY")fv=sv;
+    else if(action==="DIV60"){let m=sv.match(/-?\d+(?:[.,]\d+)?/);if(m)fv=String(Math.round((parseFloat(m[0].replace(",","."))/60)*100)/100)}
+    else if(action==="NUMBER"){let m=sv.match(/-?\d+(?:[.,]\d+)?/);if(m)fv=m[0].replace(",",".")}
+    else if(action==="REMOVE_SPACE_MM")fv=sv.replace(/\s+mm\b/ig,"mm").trim();
+    else if(action==="MAP"){let wm=maps.find(x=>S(x["Secomp Attribut"])===sa&&S(x.Kategorie)===cat&&low(x["Secomp Wert"])===low(sv))||maps.find(x=>S(x["Secomp Attribut"])===sa&&S(x.Kategorie)==="ALL"&&low(x["Secomp Wert"])===low(sv));if(wm)fv=S(wm["Unser Wert"]);else{errors.push([an,pk,sa,sv,"Kein MAP-Wert vorhanden"]);continue}}
+    else{errors.push([an,pk,sa,sv,"Unbekannte Aktion: "+action]);continue}if(!fv)continue;
+    let typ=low(cfg.Typ),opts=S(cfg.Optionen);if(typ==="enum"&&opts&&opts.toUpperCase()!=="NULL"){let allowed=opts.split(",").map(S),hit=allowed.find(x=>low(x)===low(fv));if(!hit){errors.push([an,pk,sa,sv,"Wert laut Config nicht erlaubt: "+fv]);continue}fv=hit}
+    if(typ==="number"&&!Number.isFinite(Number(fv))){errors.push([an,pk,sa,sv,"Kein gültiger Zahlenwert: "+fv]);continue}
+    results.push([an,S(cfg.AttributCode),S(cfg.Key),fv,"","Y","A"]);
+   }
+  }
+  const uniq=(arr,keyfn)=>{let m=new Map();arr.forEach(x=>m.set(keyfn(x),x));return [...m.values()]};
+  results=uniq(results,x=>x[0]+"|"+x[1]+"|"+x[3]).sort();groups=uniq(groups,x=>x[0]+"|"+x[2]).sort();
+  let katRows=[];for(const a of articles){let an=val(a,"Artikelnr.","Artikelnummer");if(!an)continue;for(const k of hierarchy){let st=val(k,"Hierarchiestufe")||"Hauptstufe";katRows.push([an,val(k,"Name der Kategorie"),st,val(k,"Code"),val(k,"Webshop URL"),val(k,"Aktiv"),val(k,"Aktion"),val(k,"Code Artikelkategorie")])}}
+  out1.set("Attribute.csv",utf8Blob(makeCsvRows(["Artikelnummer","AttributCode","Attributname","Wert","Beschreibung","Aktiv","Aktion"],results)));
+  out1.set("Attributsgruppe.csv",utf8Blob(makeCsvRows(["Artikelnummer","Name der Attributsgruppe","GruppenCode"],groups)));
+  out1.set("Artikelkategorien.csv",utf8Blob(makeCsvRows(["Artikelnummer","Artikel-Webshopkategorie","Hierarchiestufe","Code","Webshop URL","Aktiv","Aktion","Code Artikelkategorie"],katRows)));
+  if(errors.length)out1.set("Attribute_Fehler.csv",utf8Blob(makeCsvRows(["Artikelnummer","ProviderKey","SecompAttribut","SecompWert","Fehler"],errors)));
+  addDownloads("downloads1",out1);document.getElementById("results1").classList.add("show");
+  setStatus("status1",`Fertig. ${articles.length} Artikel verarbeitet.\n${results.length} Attribute erstellt.${errors.length?`\n${errors.length} Hinweise/Fehler in Attribute_Fehler.csv.`:""}`);
+ }catch(e){console.error(e);setStatus("status1","FEHLER: "+e.message,true)}
+};
+
+const cpSpecial=new Map([[0x20AC,0x80],[0x201A,0x82],[0x0192,0x83],[0x201E,0x84],[0x2026,0x85],[0x2020,0x86],[0x2021,0x87],[0x02C6,0x88],[0x2030,0x89],[0x0160,0x8A],[0x2039,0x8B],[0x0152,0x8C],[0x017D,0x8E],[0x2018,0x91],[0x2019,0x92],[0x201C,0x93],[0x201D,0x94],[0x2022,0x95],[0x2013,0x96],[0x2014,0x97],[0x02DC,0x98],[0x2122,0x99],[0x0161,0x9A],[0x203A,0x9B],[0x0153,0x9C],[0x017E,0x9E],[0x0178,0x9F]]);
+function cp1252(s){let a=[];for(const ch of s){let c=ch.codePointAt(0);a.push(c<=255?c:(cpSpecial.get(c)??63))}return new Uint8Array(a)}
+function ansiBlob(s){return new Blob([cp1252(s)],{type:"text/csv"})}
+function stamp(){let d=new Date(),p=n=>String(n).padStart(2,"0");return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+p(d.getHours())+p(d.getMinutes())}
+
+document.getElementById("downloadAll2").onclick=async()=>{
+ try{
+  if(!out2.size)return;
+  const zip=new JSZip();
+  for(const [name,blob] of out2) zip.file(name,blob);
+  const z=await zip.generateAsync({type:"blob"});
+  dlBlob(`${stamp()}_SECOMP_Importfiles.zip`,z);
+ }catch(e){console.error(e);setStatus("status2","FEHLER beim ZIP-Download: "+e.message,true)}
+};
+
+document.getElementById("run2").onclick=async()=>{
+ try{
+  setStatus("status2","Finale Importdateien werden erstellt …");out2.clear();const w=await wb(f2.get("Artikel_angereichert.xlsx")),rows=rowsFromSheet(w.Sheets[w.SheetNames[0]]),ts=stamp();
+  let ct=[["ArtikelNr.","Keywords","ShopKurzbeschrieb","ShopLangbeschrieb","VerkaufstextCT"]],fsp=[["ArtikelNr.","BezeichnungShop","Google-Kat.","ProdukttypShop","KonfigurationGrösse","KonfigurationFarbe","SichtbarkeitShop","vonRMAausschliessen","NichtaufToppreise","StockwerkPauschale","StockwerkproGerät","InstallationPauschale","InstallationproGerät","Vaterartikel","PreisShop"]];
+  for(const r of rows){let an=val(r,"ArtikelNr.","Artikelnr.","Artikelnummer");if(!an)continue;ct.push([an,val(r,"Keywords"),val(r,"ShopKurzbeschrieb"),val(r,"ShopLangbeschrieb"),val(r,"VerkaufstextCT","Verkaufstext CT")]);
+   let pt=val(r,"ProdukttypShop");fsp.push([an,val(r,"BezeichnungShop"),val(r,"Google-Kat.","Google-Kat","GoogleKat"),low(pt)==="simple"?"simple":pt,val(r,"KonfigurationGrösse","KonfigurationGröße"),val(r,"KonfigurationFarbe"),val(r,"SichtbarkeitShop"),val(r,"vonRMAausschliessen"),val(r,"NichtaufToppreise"),val(r,"StockwerkPauschale"),val(r,"StockwerkproGerät"),val(r,"InstallationPauschale"),val(r,"InstallationproGerät"),val(r,"Vaterartikel"),val(r,"PreisShop")])}
+  const clean=a=>a.map(row=>row.map(x=>S(x).replace(/[\r\n]+/g," ")).join(";")).join("\r\n");
+  out2.set(`${ts}_CT_Import.csv`,ansiBlob(clean(ct)));out2.set(`${ts}_FSP_Import.csv`,ansiBlob(clean(fsp)));
+  for(const n of ["Artikelkategorien.csv","Attribute.csv","Attributsgruppe.csv"]){let t=(await f2.get(n).text()).replace(/\r\n/g,"\n").replace(/\r/g,"\n").replace(/\n$/,"").replace(/\n/g,"\r\n");out2.set(`${ts}_${n}`,ansiBlob(t))}
+  addDownloads("downloads2",out2);document.getElementById("results2").classList.add("show");setStatus("status2",`Fertig. ${rows.length} Artikel gelesen. Fünf Importdateien wurden erstellt.`);
+ }catch(e){console.error(e);setStatus("status2","FEHLER: "+e.message,true)}
+};
+</script></body></html>
