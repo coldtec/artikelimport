@@ -144,9 +144,9 @@ function featureGroup(name){let n=low(name);
  if(/bildtechnologie|displaytechnologie|paneltechnologie|qled|oled|mini led/i.test(n))return"Bildtechnologie";if(/hdr|dolby vision/i.test(n))return"HDR";
  if(/kapazität|fassungsvermögen|nutzinhalt|volumen|beladung/i.test(n))return"Kapazitaet";if(/aquastop|wasserschutz|no frost|nofrost|low frost/i.test(n))return"Spezialfunktion";
  if(/programme|programmanzahl/i.test(n))return"Programme";if(/schleuderdrehzahl/i.test(n))return"Drehzahl";if(/energieeffizienz/i.test(n))return"Energie";if(/bildwiederhol/i.test(n))return"Bildwiederholrate";if(/geräusch|lautstärke|schall/i.test(n))return"Lautstaerke";return"Andere_"+n}
-function shortDesc(specs){let cand=[],seen=new Set();for(const sp of specs||[]){let n=S(sp.SpecificationKey_DE),v=S(sp.SpecificationValue_DE),t=attrText(n,v);if(!t||seen.has(low(t)))continue;seen.add(low(t));cand.push({text:t,name:n,val:v,score:attrScore(n,v),group:featureGroup(n)})}
+function shortDesc(specs){let cand=[],seen=new Set();for(const sp of specs||[]){let n=S(sp.Attribut),v=S(sp.Attributwert),t=attrText(n,v);if(!t||seen.has(low(t)))continue;seen.add(low(t));cand.push({text:t,name:n,val:v,score:attrScore(n,v),group:featureGroup(n)})}
  cand.sort((a,b)=>b.score-a.score);let out=[],groups=new Set();for(const x of cand){if(out.length>=3)break;if(!groups.has(x.group)){groups.add(x.group);out.push(x)}}return out.length?out.map(x=>x.text).join("<BR>")+"<BR>":""}
-function productInfo(specs){let c=[];for(const sp of specs||[]){let name=S(sp.SpecificationKey_DE),val=S(sp.SpecificationValue_DE),n=low(name),score=10;if(!name||!val)continue;
+function productInfo(specs){let c=[];for(const sp of specs||[]){let name=S(sp.Attribut),val=S(sp.Attributwert),n=low(name),score=10;if(!name||!val)continue;
  if(/modellbezeichnung|modelljahr|ean|artikelnummer|produktnummer|hersteller|materialgruppe|höhe|breite|tiefe|gewicht|verpackung|paketgewicht|farbgruppe|abmessung|dimension/i.test(n)||/^nein$/i.test(val))continue;
  if(/auflösung|bildwiederhol|hdr|dolby|qled|oled|mini led|laser/i.test(n))score+=160;if(/kapazität|fassungsvermögen|nutzinhalt|volumen|beladung/i.test(n))score+=155;
  if(/schleuderdrehzahl|drehzahl|geschwindigkeit/i.test(n))score+=150;if(/aquastop|wasserschutz|überlaufschutz/i.test(n))score+=145;if(/smart|wlan|wi-fi|wifi|bluetooth|apps|airplay/i.test(n))score+=140;
@@ -172,18 +172,18 @@ function makeCsvRows(header,rows){return [header.join(";"),...rows.map(r=>r.map(
 document.getElementById("run1").onclick=async()=>{
  try{
   setStatus("status1","Dateien werden eingelesen und verarbeitet …"); out1.clear();
-  const [awb,pwb,kwb,cwb,mwb]=await Promise.all([wb(f1.get("Artikel.xlsx")),wb(f1.get("ProductData_secomp.csv")),wb(f1.get("Keywords.xlsx")),wb(f1.get("Config.xlsx")),wb(f1.get("Mapping_Master.xlsx"))]);
+  const [awb,kwb,cwb,mwb]=await Promise.all([wb(f1.get("Artikel.xlsx")),wb(f1.get("Keywords.xlsx")),wb(f1.get("Config.xlsx")),wb(f1.get("Mapping_Master.xlsx"))]);
   const artSheet=awb.Sheets[awb.SheetNames[0]], articles=rowsFromSheet(artSheet);
   const products=await csvRows(f1.get("ProductData_secomp.csv")), specs=await csvRows(f1.get("SpecificationData_secomp.csv"));
   const kwRows=rowsFromSheet(kwb.Sheets[kwb.SheetNames[0]]), configs=rowsFromSheet(cwb.Sheets["AttributeConfig"]), cats=rowsFromSheet(cwb.Sheets["Kategorien"]), maps=rowsFromSheet(mwb.Sheets["Mapping_TV"]);
-  const prod=mapBy(products,"ProviderKey"), spec=groupBy(specs,"ProductKey"), kw=new Map();
+  const prod=mapBy(products,"ArtikelNr."), spec=groupBy(specs,"ArtikelNr."), kw=new Map();
   kwRows.forEach(r=>{let k=S(Object.values(r)[0]);if(k)kw.set(k,{keywords:S(Object.values(r)[1]).split(",").map(S).filter(Boolean),google:S(Object.values(r)[2])})});
   // Enriched workbook: preserve original sheet and write same fixed columns as PowerShell.
   const range=XLSX.utils.decode_range(artSheet["!ref"]); 
   for(let rr=1;rr<=range.e.r;rr++){const cell=(c)=>artSheet[XLSX.utils.encode_cell({r:rr,c})]?.v??"";let pk=S(cell(0));if(!pk)continue;let desc=S(cell(2)),cat=S(cell(3)),p=prod.get(pk),sp=spec.get(pk)||[];
    const set=(c,v)=>artSheet[XLSX.utils.encode_cell({r:rr,c})]={t:"s",v:S(v)};
    set(4,getKeywords(cat,desc,kw)); set(9,kw.get(keywordKey(cat,kw))?.google||""); set(8,desc);set(10,"Simple");set(13,"4");set(14,"N");
-   if(p){let info=productInfo(sp),orig=S(p.LongDescription_de),lang=orig+info;set(6,lang);set(7,lang.replace('<br><P><STRONG>Weitere wichtige Infos findest du unter Spezifikation und Downloads</STRONG></P>',''));set(5,shortDesc(sp))}
+   if(p){let info=productInfo(sp),orig=S(p.Langbeschreibung),lang=orig+info;set(6,lang);set(7,lang.replace('<br><P><STRONG>Weitere wichtige Infos findest du unter Spezifikation und Downloads</STRONG></P>',''));set(5,shortDesc(sp)||S(p.Kurzbeschreibung))}
   }
   const xbuf=XLSX.write(awb,{bookType:"xlsx",type:"array"});out1.set("Artikel_angereichert.xlsx",new Blob([xbuf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
 
@@ -194,7 +194,7 @@ document.getElementById("run1").onclick=async()=>{
   let hierarchy=[],cur=category,guard=0;while(cur&&guard++<30){let k=catLookup.get(low(cur));if(!k)throw new Error("Übergeordnete Kategorie nicht gefunden: "+cur);hierarchy.unshift(k);let parentKey=Object.keys(k).find(z=>/bergeordnete Kategorie/i.test(z));cur=parentKey?S(k[parentKey]):""}
   for(const a of articles){let pk=val(a,"ProviderKey"),an=val(a,"Artikelnr.","Artikelnummer"),cat=val(a,"Kategorie");if(!pk)continue;let cg=configGroup(cat),cfgs=configs.filter(x=>S(x.Gruppe)===cg);
    if(!cfgs.length){errors.push([an,pk,"","","Config-Gruppe nicht gefunden: "+cg]);continue}let gc=S(cfgs[0].GruppenCode);if(gc)groups.push([an,cg,gc]);else errors.push([an,pk,"","","GruppenCode fehlt in Config-Gruppe: "+cg]);
-   for(const sp of spec.get(pk)||[]){let sa=S(sp.SpecificationKey_DE),sv=S(sp.SpecificationValue_DE);if(!sa||!sv)continue;
+   for(const sp of spec.get(pk)||[]){let sa=S(sp.Attribut),sv=S(sp.Attributwert);if(!sa||!sv)continue;
     let mp=maps.find(x=>S(x["Secomp Attribut"])===sa&&S(x.Kategorie)===cat)||maps.find(x=>S(x["Secomp Attribut"])===sa&&S(x.Kategorie)==="ALL");
     if(!mp){errors.push([an,pk,sa,sv,"Kein Mapping vorhanden"]);continue}let action=S(mp.Aktion).toUpperCase();if(action==="IGNORE")continue;let ua=S(mp["Unser Attribut"]);if(!ua)continue;
     let cfg=cfgs.find(x=>S(x.Key)===ua);if(!cfg){errors.push([an,pk,sa,sv,`Attribut nicht in Config-Gruppe '${cg}': ${ua}`]);continue}let fv="";
